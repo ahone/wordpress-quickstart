@@ -5,7 +5,7 @@
         "name": "wordpress-classic-standalone",
 	"annotations": {
             "openshift.io/display-name": "WordPress (Classic / Standalone)",
-	    "description": "Creates a WordPress installation with separate MySQL database instance. Requires that two persistent volumes be available. If a ReadWriteMany persistent volume type is available and used, WordPress can be scaled to multiple replicas and the deployment strategy switched to Rolling to permit rolling deployments on restarts.",
+	    "description": "Creates a WordPress installation with separate MariaDB database instance. Requires that two persistent volumes be available. If a ReadWriteMany persistent volume type is available and used, WordPress can be scaled to multiple replicas and the deployment strategy switched to Rolling to permit rolling deployments on restarts.",
 	    "tags": "quickstart,php,wordpress",
             "iconClass": "icon-php"
 	}
@@ -21,7 +21,7 @@
         {
             "name": "QUICKSTART_REPOSITORY_URL",
             "description": "The URL of the quickstart Git repository.",
-            "value": "https://github.com/openshift-evangelists/wordpress-quickstart",
+            "value": "https://github.com/ahone/wordpress-quickstart",
             "required": true
         },
         {
@@ -74,14 +74,14 @@
 	},
         {
             "name": "MYSQL_VERSION",
-            "description": "The version of the MySQL database.",
-            "value": "5.7",
+            "description": "The version of the MariaDB database.",
+            "value": "10.2",
             "required": true
         },
         {
             "name": "PHP_VERSION",
             "description": "The version of the PHP builder.",
-            "value": "7.0",
+            "value": "7.3",
             "required": true
         }
     ],
@@ -317,12 +317,12 @@
                         "imageChangeParams": {
                             "automatic": true,
                             "containerNames": [
-                                "mysql"
+                                "mariadb"
                             ],
                             "from": {
                                 "kind": "ImageStreamTag",
                                 "namespace": "openshift",
-                                "name": "mysql:${MYSQL_VERSION}"
+                                "name": "mariadb:${MYSQL_VERSION}"
                             }
                         }
                     }
@@ -344,14 +344,14 @@
                             {
                                 "name": "data",
                                 "persistentVolumeClaim": {
-                                    "claimName": "${APPLICATION_NAME}-mysql-data"
+                                    "claimName": "${APPLICATION_NAME}-mariadb-data"
                                 }
                             }
                         ],
                         "containers": [
                             {
-                                "name": "mysql",
-                                "image": "mysql",
+                                "name": "mariadb",
+                                "image": "mariadb",
                                 "ports": [
                                     {
                                         "containerPort": 3306,
@@ -395,7 +395,7 @@
                                 "volumeMounts": [
                                     {
                                         "name": "data",
-                                        "mountPath": "/var/lib/mysql/data"
+                                        "mountPath": "/var/lib/mariadb/data"
                                     }
                                 ]
                             }
@@ -481,7 +481,7 @@
             "kind": "PersistentVolumeClaim",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${APPLICATION_NAME}-mysql-data",
+                "name": "${APPLICATION_NAME}-mariadb-data",
                 "labels": {
                     "app": "${APPLICATION_NAME}"
                 }
