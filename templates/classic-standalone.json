@@ -2,19 +2,19 @@
     "kind": "Template",
     "apiVersion": "v1",
     "metadata": {
-        "name": "wordpress-classic-standalone",
+        "name": "wordpress-mariadb-standalone",
 	"annotations": {
-            "openshift.io/display-name": "WordPress (Classic / Standalone)",
-	    "description": "Creates a WordPress installation with separate MariaDB database instance. Requires that two persistent volumes be available. If a ReadWriteMany persistent volume type is available and used, WordPress can be scaled to multiple replicas and the deployment strategy switched to Rolling to permit rolling deployments on restarts.",
-	    "tags": "quickstart,php,wordpress",
-            "iconClass": "icon-php"
+            "openshift.io/display-name": "WordPress & MariaDB (Classic / Standalone)",
+	    "description": "Creates a WordPress installation with separate MariaDB database with persistent storage instance. Requires that two persistent volumes be available. If a ReadWriteMany persistent volume type is available and used, WordPress can be scaled to multiple replicas and the deployment strategy switched to Rolling to permit rolling deployments on restarts.",
+            "iconClass": "icon-wordpress",
+            "tags": "php,wordpress,database,mariadb"
 	}
     },
     "parameters": [
         {
             "name": "APPLICATION_NAME",
             "description": "The name of the WordPress instance.",
-            "value": "my-wordpress-site",
+            "value": "www-domain-tld",
             "from": "[a-zA-Z0-9]",
             "required": true
         },
@@ -49,40 +49,75 @@
             "required": true
         },
         {
-            "name": "DATABASE_VOLUME_SIZE",
-            "description": "Size of the persistent volume for the database.",
-            "value": "1Gi",
-            "required": true
-        },
-        {
-            "name": "DATABASE_MEMORY_LIMIT",
-            "description": "Amount of memory available to the database.",
-            "value": "512Mi",
-            "required": true
-        },
-	{
-	    "description": "The name of the database user.",
-	    "name": "DATABASE_USERNAME",
-	    "from": "user[a-f0-9]{8}",
-	    "generate": "expression"
-	},
-	{
-	    "description": "The password for the database user.",
-	    "name": "DATABASE_PASSWORD",
-	    "from": "[a-zA-Z0-9]{12}",
-	    "generate": "expression"
-	},
-        {
-            "name": "MYSQL_VERSION",
-            "description": "The version of the MariaDB database.",
-            "value": "10.2",
-            "required": true
-        },
-        {
             "name": "PHP_VERSION",
             "description": "The version of the PHP builder.",
             "value": "7.0",
             "required": true
+        },
+	{
+            "description": "Maximum amount of memory the container can use.",
+            "displayName": "Memory Limit",
+            "name": "MEMORY_LIMIT",
+            "required": true,
+            "value": "512Mi"
+        },
+        {
+            "description": "The OpenShift Namespace where the ImageStream resides.",
+            "displayName": "Namespace",
+            "name": "NAMESPACE",
+            "value": "openshift"
+        },
+        {
+            "description": "The name of the OpenShift Service exposed for the database.",
+            "displayName": "Database Service Name",
+            "name": "DATABASE_SERVICE_NAME",
+            "required": true,
+            "value": "mariadb"
+        },
+        {
+            "description": "Username for MariaDB user that will be used for accessing the database.",
+            "displayName": "MariaDB Connection Username",
+            "from": "user[A-Z0-9]{3}",
+            "generate": "expression",
+            "name": "MYSQL_USER",
+            "required": true
+        },
+        {
+            "description": "Password for the MariaDB connection user.",
+            "displayName": "MariaDB Connection Password",
+            "from": "[a-zA-Z0-9]{16}",
+            "generate": "expression",
+            "name": "MYSQL_PASSWORD",
+            "required": true
+        },
+        {
+            "description": "Password for the MariaDB root user.",
+            "displayName": "MariaDB root Password",
+            "from": "[a-zA-Z0-9]{16}",
+            "generate": "expression",
+            "name": "MYSQL_ROOT_PASSWORD",
+            "required": true
+        },
+        {
+            "description": "Name of the MariaDB database accessed.",
+            "displayName": "MariaDB Database Name",
+            "name": "MYSQL_DATABASE",
+            "required": true,
+            "value": "sampledb"
+        },
+        {
+            "description": "Version of MariaDB image to be used (10.2 or latest).",
+            "displayName": "Version of MariaDB Image",
+            "name": "MARIADB_VERSION",
+            "required": true,
+            "value": "10.2"
+        },
+        {
+            "description": "Volume space available for data, e.g. 512Mi, 2Gi.",
+            "displayName": "Volume Capacity",
+            "name": "VOLUME_CAPACITY",
+            "required": true,
+            "value": "1Gi"
         }
     ],
     "objects": [
@@ -296,115 +331,6 @@
             }
         },
         {
-            "kind": "DeploymentConfig",
-            "apiVersion": "v1",
-            "metadata": {
-                "name": "${APPLICATION_NAME}-db",
-                "labels": {
-                    "app": "${APPLICATION_NAME}"
-                }
-            },
-            "spec": {
-                "strategy": {
-                    "type": "Recreate"
-                },
-                "triggers": [
-                    {
-                        "type": "ConfigChange"
-                    },
-                    {
-                        "type": "ImageChange",
-                        "imageChangeParams": {
-                            "automatic": true,
-                            "containerNames": [
-                                "mariadb"
-                            ],
-                            "from": {
-                                "kind": "ImageStreamTag",
-                                "namespace": "openshift",
-                                "name": "mariadb:${MYSQL_VERSION}"
-                            }
-                        }
-                    }
-                ],
-                "replicas": 1,
-                "selector": {
-                    "app": "${APPLICATION_NAME}",
-                    "deploymentconfig": "${APPLICATION_NAME}-db"
-                },
-                "template": {
-                    "metadata": {
-                        "labels": {
-                            "app": "${APPLICATION_NAME}",
-                            "deploymentconfig": "${APPLICATION_NAME}-db"
-                        }
-                    },
-                    "spec": {
-                        "volumes": [
-                            {
-                                "name": "mariadb-data",
-                                "persistentVolumeClaim": {
-                                    "claimName": "${APPLICATION_NAME}-mariadb-data"
-                                }
-                            }
-                        ],
-                        "containers": [
-                            {
-                                "name": "mariadb",
-                                "image": "mariadb",
-                                "ports": [
-                                    {
-                                        "containerPort": 3306,
-                                        "protocol": "TCP"
-                                    }
-                                ],
-				"resources": {
-                                    "limits": {
-                                        "memory": "${DATABASE_MEMORY_LIMIT}"
-				    }
-                                },
-				"readinessProbe": {
-				  "timeoutSeconds": 1,
-				  "initialDelaySeconds": 5,
-				  "exec": {
-				    "command": [ "/bin/sh", "-i", "-c",
-				      "MYSQL_PWD=\"$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u $MYSQL_USER -D $MYSQL_DATABASE -e 'SELECT 1'"]
-				  }
-				},
-				"livenessProbe": {
-				  "timeoutSeconds": 1,
-				  "initialDelaySeconds": 30,
-				  "tcpSocket": {
-				    "port": 3306
-				  }
-				},
-                                "env": [
-                                    {
-                                        "name": "MYSQL_DATABASE",
-                                        "value": "wordpress"
-                                    },
-                                    {
-                                        "name": "MYSQL_USER",
-                                        "value": "${DATABASE_USERNAME}"
-                                    },
-                                    {
-                                        "name": "MYSQL_PASSWORD",
-                                        "value": "${DATABASE_PASSWORD}"
-                                    }
-                                ],
-                                "volumeMounts": [
-                                    {
-                                        "name": "mariadb-data",
-                                        "mountPath": "/var/lib/mariadb/data"
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                }
-            }
-        },
-        {
             "kind": "Service",
             "apiVersion": "v1",
             "metadata": {
@@ -428,31 +354,7 @@
                 }
             }
         },
-        {
-            "kind": "Service",
-            "apiVersion": "v1",
-            "metadata": {
-                "name": "${APPLICATION_NAME}-db",
-                "labels": {
-                    "app": "${APPLICATION_NAME}"
-                }
-            },
-            "spec": {
-                "ports": [
-                    {
-                        "name": "3306-tcp",
-                        "protocol": "TCP",
-                        "port": 3306,
-                        "targetPort": 3306
-                    }
-                ],
-                "selector": {
-                    "app": "${APPLICATION_NAME}",
-                    "deploymentconfig": "${APPLICATION_NAME}-db"
-                }
-            }
-        },
-        {
+           {
             "kind": "Route",
             "apiVersion": "v1",
             "metadata": {
@@ -477,28 +379,7 @@
                 }
             }
         },
-        {
-            "kind": "PersistentVolumeClaim",
-            "apiVersion": "v1",
-            "metadata": {
-		"annotations": "volume.beta.kubernetes.io/storage-class: glusterfs-storage", "volume.beta.kubernetes.io/storage-provisioner: kubernetes.io/glusterfs"
-                "name": "${APPLICATION_NAME}-mariadb-data",
-                "labels": {
-                    "app": "${APPLICATION_NAME}"
-                }
-            },
-            "spec": {
-                "accessModes": [
-                    "ReadWriteOnce"
-                ],
-                "resources": {
-                    "requests": {
-                        "storage": "${DATABASE_VOLUME_SIZE}"
-                    }
-                }
-            }
-        },
-        {
+           {
             "kind": "PersistentVolumeClaim",
             "apiVersion": "v1",
             "metadata": {
@@ -516,6 +397,198 @@
                         "storage": "${WORDPRESS_VOLUME_SIZE}"
                     }
                 }
+            }
+        },
+	  {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {
+                "annotations": {
+                    "template.openshift.io/expose-database_name": "{.data['database-name']}",
+                    "template.openshift.io/expose-password": "{.data['database-password']}",
+                    "template.openshift.io/expose-root_password": "{.data['database-root-password']}",
+                    "template.openshift.io/expose-username": "{.data['database-user']}"
+                },
+                "name": "${DATABASE_SERVICE_NAME}"
+            },
+            "stringData": {
+                "database-name": "${MYSQL_DATABASE}",
+                "database-password": "${MYSQL_PASSWORD}",
+                "database-root-password": "${MYSQL_ROOT_PASSWORD}",
+                "database-user": "${MYSQL_USER}"
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "annotations": {
+                    "template.openshift.io/expose-uri": "mysql://{.spec.clusterIP}:{.spec.ports[?(.name==\"mariadb\")].port}"
+                },
+                "name": "${DATABASE_SERVICE_NAME}"
+            },
+            "spec": {
+                "ports": [
+                    {
+                        "name": "mariadb",
+                        "port": 3306
+                    }
+                ],
+                "selector": {
+                    "name": "${DATABASE_SERVICE_NAME}"
+                }
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {
+                "name": "${DATABASE_SERVICE_NAME}"
+            },
+            "spec": {
+                "accessModes": [
+                    "ReadWriteOnce"
+                ],
+                "resources": {
+                    "requests": {
+                        "storage": "${VOLUME_CAPACITY}"
+                    }
+                }
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "DeploymentConfig",
+            "metadata": {
+                "annotations": {
+                    "template.alpha.openshift.io/wait-for-ready": "true"
+                },
+                "name": "${DATABASE_SERVICE_NAME}"
+            },
+            "spec": {
+                "replicas": 1,
+                "selector": {
+                    "name": "${DATABASE_SERVICE_NAME}"
+                },
+                "strategy": {
+                    "type": "Recreate"
+                },
+                "template": {
+                    "metadata": {
+                        "labels": {
+                            "name": "${DATABASE_SERVICE_NAME}"
+                        }
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "env": [
+                                    {
+                                        "name": "MYSQL_USER",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "key": "database-user",
+                                                "name": "${DATABASE_SERVICE_NAME}"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "MYSQL_PASSWORD",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "key": "database-password",
+                                                "name": "${DATABASE_SERVICE_NAME}"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "MYSQL_ROOT_PASSWORD",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "key": "database-root-password",
+                                                "name": "${DATABASE_SERVICE_NAME}"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "MYSQL_DATABASE",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "key": "database-name",
+                                                "name": "${DATABASE_SERVICE_NAME}"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "image": " ",
+                                "imagePullPolicy": "IfNotPresent",
+                                "livenessProbe": {
+                                    "initialDelaySeconds": 30,
+                                    "tcpSocket": {
+                                        "port": 3306
+                                    },
+                                    "timeoutSeconds": 1
+                                },
+                                "name": "mariadb",
+                                "ports": [
+                                    {
+                                        "containerPort": 3306
+                                    }
+                                ],
+                                "readinessProbe": {
+                                    "exec": {
+                                        "command": [
+                                            "/bin/sh",
+                                            "-i",
+                                            "-c",
+                                            "MYSQL_PWD=\"$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u $MYSQL_USER -D $MYSQL_DATABASE -e 'SELECT 1'"
+                                        ]
+                                    },
+                                    "initialDelaySeconds": 5,
+                                    "timeoutSeconds": 1
+                                },
+                                "resources": {
+                                    "limits": {
+                                        "memory": "${MEMORY_LIMIT}"
+                                    }
+                                },
+                                "volumeMounts": [
+                                    {
+                                        "mountPath": "/var/lib/mysql/data",
+                                        "name": "${DATABASE_SERVICE_NAME}-data"
+                                    }
+                                ]
+                            }
+                        ],
+                        "volumes": [
+                            {
+                                "name": "${DATABASE_SERVICE_NAME}-data",
+                                "persistentVolumeClaim": {
+                                    "claimName": "${DATABASE_SERVICE_NAME}"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "triggers": [
+                    {
+                        "imageChangeParams": {
+                            "automatic": true,
+                            "containerNames": [
+                                "mariadb"
+                            ],
+                            "from": {
+                                "kind": "ImageStreamTag",
+                                "name": "mariadb:${MARIADB_VERSION}",
+                                "namespace": "${NAMESPACE}"
+                            }
+                        },
+                        "type": "ImageChange"
+                    },
+                    {
+                        "type": "ConfigChange"
+                    }
+                ]
             }
         }
     ]
